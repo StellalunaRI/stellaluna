@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Stellaluna — Voyage Log</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-authentication-library-for-js/2.38.3/msal-browser.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400&display=swap');
+
+  :root {
+    --navy: #0d1f2d;
+    --navy2: #162433;
+    --navy3: #1e3042;
+    --teal: #2a9d8f;
+    --teal-light: #3dbfb0;
+    --gold: #e9c46a;
+    --gold-dim: #c9a84c;
+    --coral: #e76f51;
+    --sand: #f4e9d8;
+    --sand-dim: #ddd0b8;
+    --white: #faf8f5;
+    --muted: rgba(244,233,216,0.45);
+    --border: rgba(244,233,216,0.15);
+    --border2: rgba(244,233,216,0.25);
+    --radius: 10px;
+    --font-serif: 'Crimson Pro', Georgia, serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--navy);
+    color: var(--sand);
+    font-family: var(--font-serif);
+    font-size: 17px;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* subtle wave pattern background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 40px,
+      rgba(42,157,143,0.03) 40px,
+      rgba(42,157,143,0.03) 41px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; padding: 0 16px 60px; }
+
+  /* HEADER */
+  header { padding: 32px 0 24px; border-bottom: 0.5px solid var(--border2); margin-bottom: 24px; }
+  .vessel-name { font-size: 32px; font-weight: 300; letter-spacing: 0.04em; color: var(--white); line-height: 1; }
+  .vessel-name em { font-style: italic; color: var(--gold); }
+  .vessel-sub { font-size: 13px; font-family: var(--font-mono); color: var(--muted); margin-top: 6px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .auth-status { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #888; flex-shrink: 0; }
+  .status-dot.connected { background: var(--teal); box-shadow: 0 0 6px var(--teal); }
+  .status-dot.error { background: var(--coral); }
+  .status-text { font-size: 12px; font-family: var(--font-mono); color: var(--muted); letter-spacing: 0.05em; }
+  .sign-btn { font-size: 12px; font-family: var(--font-mono); color: var(--gold); background: none; border: 0.5px solid var(--gold-dim); border-radius: 6px; padding: 4px 12px; cursor: pointer; letter-spacing: 0.05em; margin-left: auto; }
+  .sign-btn:hover { background: rgba(233,196,106,0.1); }
+
+  /* TABS */
+  .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 0.5px solid var(--border); }
+  .tab-btn { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); background: none; border: none; padding: 10px 18px 12px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; }
+  .tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+  /* SECTIONS */
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--teal-light);
+    margin: 22px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 0.5px; background: var(--border); }
+
+  /* FORM */
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 130px; }
+  .field label { font-size: 11px; font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .field input, .field select, .field textarea {
+    font-family: var(--font-serif);
+    font-size: 16px;
+    color: var(--white);
+    background: var(--navy3);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 9px 12px;
+    width: 100%;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    border-color: var(--teal);
+  }
+  .field select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%232a9d8f' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+  .field select option { background: var(--navy2); }
+  .field textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+
+  /* CHECKLIST */
+  .checks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+  .check-item {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 14px; font-family: var(--font-serif);
+    color: var(--sand-dim);
+    background: var(--navy3);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 13px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s;
+  }
+  .check-item input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--teal); flex-shrink: 0; }
+  .check-item.dep-checked { border-color: var(--teal); background: rgba(42,157,143,0.12); color: var(--white); }
+  .check-item.cabin-checked { border-color: var(--gold); background: rgba(233,196,106,0.10); color: var(--white); }
+  .check-item.ret-checked { border-color: #85B7EB; background: rgba(133,183,235,0.10); color: var(--white); }
+  .check-item.dep-checked input { accent-color: var(--teal); }
+  .check-item.cabin-checked input { accent-color: var(--gold); }
+  .check-item.ret-checked input { accent-color: #85B7EB; }
+
+  /* SAVE BUTTON */
+  .save-btn {
+    width: 100%;
+    margin-top: 20px;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--teal) 0%, #1f7a6e 100%);
+    border: none;
+    border-radius: var(--radius);
+    color: var(--white);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .save-btn:hover { opacity: 0.88; }
+  .save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* LOG ENTRIES */
+  .entry-card {
+    background: var(--navy2);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+  .entry-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .entry-date { font-size: 20px; font-weight: 300; color: var(--white); line-height: 1.1; }
+  .entry-dest { font-size: 14px; font-style: italic; color: var(--gold); margin-top: 2px; }
+  .del-btn { font-size: 11px; font-family: var(--font-mono); color: var(--muted); background: none; border: none; cursor: pointer; padding: 2px 0; letter-spacing: 0.05em; }
+  .del-btn:hover { color: var(--coral); }
+  .entry-stats { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; font-size: 13px; font-family: var(--font-mono); color: var(--muted); }
+  .entry-stats strong { color: var(--sand); font-weight: 400; }
+  .check-group-label { font-size: 10px; font-family: var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 10px 0 5px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 5px; }
+  .badge { font-size: 11px; font-family: var(--font-mono); padding: 3px 9px; border-radius: 6px; }
+  .badge.ok-dep { background: rgba(42,157,143,0.15); color: var(--teal-light); border: 0.5px solid rgba(42,157,143,0.3); }
+  .badge.ok-cabin { background: rgba(233,196,106,0.12); color: var(--gold); border: 0.5px solid rgba(233,196,106,0.25); }
+  .badge.ok-ret { background: rgba(133,183,235,0.12); color: #85B7EB; border: 0.5px solid rgba(133,183,235,0.25); }
+  .badge.x { background: rgba(255,255,255,0.04); color: rgba(244,233,216,0.3); border: 0.5px solid var(--border); }
+  .entry-notes { font-size: 14px; font-style: italic; color: var(--muted); margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--border); }
+
+  /* STATES */
+  .empty { text-align: center; padding: 48px 0; font-style: italic; color: var(--muted); font-size: 18px; }
+  .saving-indicator { font-size: 12px; font-family: var(--font-mono); color: var(--teal); letter-spacing: 0.06em; margin-top: 8px; min-height: 18px; text-align: center; }
+  .error-msg { color: var(--coral); }
+
+  .hidden { display: none !important; }
+
+  /* SIGN IN SCREEN */
+  .signin-screen { text-align: center; padding: 60px 24px; }
+  .signin-screen h2 { font-size: 26px; font-weight: 300; color: var(--white); margin-bottom: 12px; }
+  .signin-screen p { font-size: 15px; color: var(--muted); margin-bottom: 32px; line-height: 1.6; max-width: 340px; margin-left: auto; margin-right: auto; }
+  .signin-big-btn {
+    display: inline-block;
+    padding: 14px 36px;
+    background: linear-gradient(135deg, var(--teal) 0%, #1f7a6e 100%);
+    border: none; border-radius: var(--radius);
+    color: var(--white); font-family: var(--font-mono);
+    font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer;
+  }
+  .signin-big-btn:hover { opacity: 0.88; }
+
+  .divider { height: 0.5px; background: var(--border); margin: 4px 0; }
+
+  /* export button */
+  .export-btn {
+    font-size: 11px; font-family: var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--muted); background: none; border: 0.5px solid var(--border); border-radius: 6px;
+    padding: 5px 12px; cursor: pointer; float: right; margin-top: -4px;
+  }
+  .export-btn:hover { color: var(--gold); border-color: var(--gold-dim); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="vessel-name"><em>Stellaluna</em></div>
+    <div class="vessel-sub">Jeanneau Sun Odyssey 350 &nbsp;·&nbsp; Bristol Harbor, RI</div>
+    <div class="auth-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span class="status-text" id="status-text">Not connected</span>
+      <button class="sign-btn hidden" id="sign-btn" onclick="toggleAuth()"></button>
+    </div>
+  </header>
+
+  <!-- SIGN IN PROMPT -->
+  <div id="signin-screen" class="signin-screen">
+    <h2>Connect to OneDrive</h2>
+    <p>Sign in with your Microsoft account to save your voyage log to OneDrive. Your entries will be available on any device.</p>
+    <button class="signin-big-btn" onclick="signIn()">Sign in with Microsoft</button>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="main-app" class="hidden">
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-btn-new" onclick="showTab('new',this)">New entry</button>
+      <button class="tab-btn" id="tab-btn-log" onclick="showTab('log',this)">Log</button>
+    </div>
+
+    <!-- NEW ENTRY -->
+    <div id="tab-new">
+      <div class="section-label">Trip</div>
+      <div class="row">
+        <div class="field"><label>Date</label><input type="date" id="f-date"></div>
+        <div class="field"><label>Departure</label><input type="time" id="f-dep"></div>
+        <div class="field"><label>Return</label><input type="time" id="f-ret"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Destination</label><input type="text" id="f-dest" placeholder="e.g. Cuttyhunk, Narragansett Bay"></div>
+        <div class="field"><label>Passengers</label><input type="text" id="f-pax" placeholder="e.g. Jim, Paula"></div>
+      </div>
+
+      <div class="section-label">Engine hours</div>
+      <div class="row">
+        <div class="field"><label>Hours out</label><input type="number" id="f-hrs-out" placeholder="342.5" step="0.1"></div>
+        <div class="field"><label>Hours in</label><input type="number" id="f-hrs-in" placeholder="345.0" step="0.1"></div>
+      </div>
+
+      <div class="section-label">Fuel</div>
+      <div class="row">
+        <div class="field"><label>Level at departure</label>
+          <select id="f-fuel-out"><option value="">—</option><option>Full</option><option>3/4</option><option>1/2</option><option>1/4</option><option>Low</option></select>
+        </div>
+        <div class="field"><label>Level on return</label>
+          <select id="f-fuel-in"><option value="">—</option><option>Full</option><option>3/4</option><option>1/2</option><option>1/4</option><option>Low</option></select>
+        </div>
+        <div class="field"><label>Added (gal)</label><input type="number" id="f-fuel-gal" placeholder="0" step="0.1" min="0"></div>
+      </div>
+
+      <div class="section-label">Pre-departure — mechanical</div>
+      <div class="checks" id="dep-checks">
+        <label class="check-item" onclick="toggleCheck(this,'dep-checked')"><input type="checkbox" value="Oil"> Oil</label>
+        <label class="check-item" onclick="toggleCheck(this,'dep-checked')"><input type="checkbox" value="Coolant"> Coolant</label>
+        <label class="check-item" onclick="toggleCheck(this,'dep-checked')"><input type="checkbox" value="Bilge"> Bilge</label>
+        <label class="check-item" onclick="toggleCheck(this,'dep-checked')"><input type="checkbox" value="Thru hulls open"> Thru hulls open</label>
+        <label class="check-item" onclick="toggleCheck(this,'dep-checked')"><input type="checkbox" value="Sea strainer"> Sea strainer</label>
+        <label class="check-item" onclick="toggleCheck(this,'dep-checked')"><input type="checkbox" value="Safety gear"> Safety gear</label>
+        <label class="check-item" onclick="toggleCheck(this,'dep-checked')"><input type="checkbox" value="Fuel"> Fuel</label>
+      </div>
+
+      <div class="section-label">Pre-departure — cabin &amp; deck</div>
+      <div class="checks" id="cabin-checks">
+        <label class="check-item" onclick="toggleCheck(this,'cabin-checked')"><input type="checkbox" value="Deck hatches secured"> Deck hatches secured</label>
+        <label class="check-item" onclick="toggleCheck(this,'cabin-checked')"><input type="checkbox" value="Cabinets latched"> Cabinets latched</label>
+        <label class="check-item" onclick="toggleCheck(this,'cabin-checked')"><input type="checkbox" value="Drawers secured"> Drawers secured</label>
+        <label class="check-item" onclick="toggleCheck(this,'cabin-checked')"><input type="checkbox" value="Loose items stowed"> Loose items stowed</label>
+        <label class="check-item" onclick="toggleCheck(this,'cabin-checked')"><input type="checkbox" value="Companionway clear"> Companionway clear</label>
+      </div>
+
+      <div class="section-label">Return / tie-up</div>
+      <div class="checks" id="ret-checks">
+        <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Thru hulls closed"> Thru hulls closed</label>
+        <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Safety gear stowed"> Safety gear stowed</label>
+        <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Trip logged"> Trip logged</label>
+        <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Battery switch off"> Battery switch off</label>
+        <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Bilge clear"> Bilge clear</label>
+        <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Lines secured"> Lines secured</label>
+      </div>
+
+      <div class="section-label">Notes</div>
+      <div class="row">
+        <div class="field"><textarea id="f-notes" placeholder="Wind, sea state, incidents…"></textarea></div>
+      </div>
+
+      <button class="save-btn" id="save-btn" onclick="saveEntry()">Save to OneDrive</button>
+      <div class="saving-indicator" id="saving-indicator"></div>
+    </div>
+
+    <!-- LOG -->
+    <div id="tab-log" class="hidden">
+      <button class="export-btn" onclick="exportCSV()">Export CSV</button>
+      <div id="entries-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID = '749eee94-12c8-4cf2-977a-15164046764f';
+const REDIRECT_URI = 'https://stellalunaRI.github.io/stellaluna/';
+const SCOPES = ['Files.ReadWrite', 'User.Read'];
+const WORKBOOK_NAME = 'Stellaluna_Log.xlsx';
+const SHEET_NAME = 'VoyageLog';
+
+const DEP_CHECKS   = ['Oil','Coolant','Bilge','Thru hulls open','Sea strainer','Safety gear','Fuel'];
+const CABIN_CHECKS = ['Deck hatches secured','Cabinets latched','Drawers secured','Loose items stowed','Companionway clear'];
+const RET_CHECKS   = ['Thru hulls closed','Safety gear stowed','Trip logged','Battery switch off','Bilge clear','Lines secured'];
+const HEADERS = ['ID','Date','DepartureTime','ReturnTime','Destination','Passengers','EngineHrsOut','EngineHrsIn','HoursElapsed','FuelOut','FuelIn','FuelAdded','DepChecks','CabinChecks','RetChecks','Notes'];
+
+const msalConfig = {
+  auth: {
+    clientId: CLIENT_ID,
+    authority: 'https://login.microsoftonline.com/consumers',
+    redirectUri: REDIRECT_URI
+  },
+  cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
+};
+
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+let accessToken = null;
+let workbookId = null;
+let entries = [];
+
+async function init() {
+  try {
+    const resp = await msalInstance.handleRedirectPromise();
+    if (resp && resp.accessToken) {
+      accessToken = resp.accessToken;
+    }
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0 && !accessToken) {
+      try {
+        const silentResp = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account: accounts[0] });
+        accessToken = silentResp.accessToken;
+      } catch(e) { accessToken = null; }
+    }
+    if (accessToken) {
+      showApp();
+      await setupWorkbook();
+      await loadEntries();
+    } else {
+      showSignIn();
+    }
+  } catch(e) {
+    console.error(e);
+    showSignIn();
+  }
+}
+
+function showSignIn() {
+  document.getElementById('signin-screen').classList.remove('hidden');
+  document.getElementById('main-app').classList.add('hidden');
+  document.getElementById('status-dot').className = 'status-dot';
+  document.getElementById('status-text').textContent = 'Not connected';
+  document.getElementById('sign-btn').textContent = 'Sign in';
+  document.getElementById('sign-btn').classList.remove('hidden');
+}
+
+function showApp() {
+  document.getElementById('signin-screen').classList.add('hidden');
+  document.getElementById('main-app').classList.remove('hidden');
+  document.getElementById('status-dot').className = 'status-dot connected';
+  document.getElementById('status-text').textContent = 'Connected to OneDrive';
+  document.getElementById('sign-btn').textContent = 'Sign out';
+  document.getElementById('sign-btn').classList.remove('hidden');
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+}
+
+async function signIn() {
+  try {
+    await msalInstance.loginRedirect({ scopes: SCOPES });
+  } catch(e) { console.error(e); }
+}
+
+async function toggleAuth() {
+  if (accessToken) {
+    msalInstance.logoutRedirect();
+  } else {
+    await signIn();
+  }
+}
+
+async function apiCall(method, path, body) {
+  const url = `https://graph.microsoft.com/v1.0${path}`;
+  const opts = {
+    method,
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  if (!r.ok) {
+    const err = await r.text();
+    throw new Error(`Graph API error ${r.status}: ${err}`);
+  }
+  const ct = r.headers.get('content-type') || '';
+  if (ct.includes('application/json')) return r.json();
+  return null;
+}
+
+async function setupWorkbook() {
+  try {
+    // check if workbook exists
+    let fileId = localStorage.getItem('stellaluna_workbook_id');
+    if (fileId) {
+      try {
+        await apiCall('GET', `/me/drive/items/${fileId}`);
+        workbookId = fileId;
+        return;
+      } catch(e) { localStorage.removeItem('stellaluna_workbook_id'); }
+    }
+    // search for existing file
+    const search = await apiCall('GET', `/me/drive/root/children?$filter=name eq '${WORKBOOK_NAME}'`);
+    if (search.value && search.value.length > 0) {
+      workbookId = search.value[0].id;
+      localStorage.setItem('stellaluna_workbook_id', workbookId);
+      return;
+    }
+    // create new workbook via upload
+    const csvContent = HEADERS.join('\t');
+    const blob = new Blob([csvContent], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    // We'll create a simple approach: upload empty xlsx skeleton
+    // Actually create via PUT with xlsx content type
+    const uploadResp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${WORKBOOK_NAME}:/content`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      },
+      body: new Uint8Array(0)
+    });
+    if (uploadResp.ok) {
+      const fileData = await uploadResp.json();
+      workbookId = fileData.id;
+      localStorage.setItem('stellaluna_workbook_id', workbookId);
+      // add header row
+      await addHeaderRow();
+    }
+  } catch(e) {
+    console.warn('Workbook setup issue:', e);
+    setIndicator('OneDrive connected — will save on next entry', false);
+  }
+}
+
+async function addHeaderRow() {
+  try {
+    await apiCall('POST', `/me/drive/items/${workbookId}/workbook/worksheets('Sheet1')/tables/add`, {
+      address: 'A1', hasHeaders: true
+    });
+  } catch(e) {}
+  try {
+    await apiCall('PATCH', `/me/drive/items/${workbookId}/workbook/worksheets('Sheet1')/range(address='A1:P1')`, {
+      values: [HEADERS]
+    });
+  } catch(e) {}
+}
+
+async function loadEntries() {
+  // load from localStorage as cache; sync from OneDrive in background
+  const cached = localStorage.getItem('stellaluna_entries');
+  if (cached) {
+    entries = JSON.parse(cached);
+    renderLog();
+  }
+  await syncFromOneDrive();
+}
+
+async function syncFromOneDrive() {
+  if (!workbookId) return;
+  try {
+    const resp = await apiCall('GET', `/me/drive/items/${workbookId}/workbook/worksheets('Sheet1')/usedRange`);
+    if (!resp || !resp.values || resp.values.length < 2) return;
+    const rows = resp.values.slice(1); // skip header
+    entries = rows.filter(r => r[0]).map(r => ({
+      id: r[0],
+      date: r[1], dep: r[2], ret: r[3], dest: r[4], pax: r[5],
+      hrsOut: r[6], hrsIn: r[7], elapsed: r[8],
+      fuelOut: r[9], fuelIn: r[10], fuelGal: r[11],
+      depChecks: r[12] ? r[12].split(',') : [],
+      cabinChecks: r[13] ? r[13].split(',') : [],
+      retChecks: r[14] ? r[14].split(',') : [],
+      notes: r[15] || ''
+    })).reverse();
+    localStorage.setItem('stellaluna_entries', JSON.stringify(entries));
+    renderLog();
+  } catch(e) { console.warn('Sync error:', e); }
+}
+
+async function appendRowToOneDrive(entry) {
+  if (!workbookId) throw new Error('No workbook');
+  const row = [
+    entry.id, entry.date, entry.dep, entry.ret, entry.dest, entry.pax,
+    entry.hrsOut, entry.hrsIn, entry.elapsed,
+    entry.fuelOut, entry.fuelIn, entry.fuelGal,
+    entry.depChecks.join(','), entry.cabinChecks.join(','), entry.retChecks.join(','),
+    entry.notes
+  ];
+  // get next empty row
+  const resp = await apiCall('GET', `/me/drive/items/${workbookId}/workbook/worksheets('Sheet1')/usedRange`);
+  const nextRow = resp && resp.values ? resp.values.length + 1 : 2;
+  const endCol = 'P';
+  await apiCall('PATCH', `/me/drive/items/${workbookId}/workbook/worksheets('Sheet1')/range(address='A${nextRow}:${endCol}${nextRow}')`, {
+    values: [row]
+  });
+}
+
+function setIndicator(msg, isError) {
+  const el = document.getElementById('saving-indicator');
+  el.textContent = msg;
+  el.className = 'saving-indicator' + (isError ? ' error-msg' : '');
+}
+
+async function saveEntry() {
+  const hrsOut  = parseFloat(document.getElementById('f-hrs-out').value);
+  const hrsIn   = parseFloat(document.getElementById('f-hrs-in').value);
+  const fuelGal = parseFloat(document.getElementById('f-fuel-gal').value);
+  const entry = {
+    id: Date.now(),
+    date:    document.getElementById('f-date').value,
+    dep:     document.getElementById('f-dep').value,
+    ret:     document.getElementById('f-ret').value,
+    dest:    document.getElementById('f-dest').value,
+    pax:     document.getElementById('f-pax').value,
+    hrsOut:  isNaN(hrsOut)  ? '' : hrsOut,
+    hrsIn:   isNaN(hrsIn)   ? '' : hrsIn,
+    elapsed: (!isNaN(hrsOut) && !isNaN(hrsIn)) ? Math.round((hrsIn - hrsOut) * 10) / 10 : '',
+    fuelOut: document.getElementById('f-fuel-out').value,
+    fuelIn:  document.getElementById('f-fuel-in').value,
+    fuelGal: isNaN(fuelGal) ? '' : fuelGal,
+    depChecks:   Array.from(document.querySelectorAll('#dep-checks input:checked')).map(i => i.value),
+    cabinChecks: Array.from(document.querySelectorAll('#cabin-checks input:checked')).map(i => i.value),
+    retChecks:   Array.from(document.querySelectorAll('#ret-checks input:checked')).map(i => i.value),
+    notes: document.getElementById('f-notes').value
+  };
+  if (!entry.date) { alert('Please enter a date.'); return; }
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  setIndicator('Saving to OneDrive…');
+
+  // save to local cache immediately
+  entries.unshift(entry);
+  localStorage.setItem('stellaluna_entries', JSON.stringify(entries));
+
+  try {
+    await appendRowToOneDrive(entry);
+    setIndicator('Saved to OneDrive ✓');
+    resetForm();
+    showTab('log', document.getElementById('tab-btn-log'));
+    renderLog();
+  } catch(e) {
+    setIndicator('Saved locally — OneDrive sync failed. Will retry on next open.', true);
+    console.error(e);
+    resetForm();
+    showTab('log', document.getElementById('tab-btn-log'));
+    renderLog();
+  }
+  btn.disabled = false;
+}
+
+function resetForm() {
+  ['f-date','f-dep','f-ret','f-dest','f-pax','f-hrs-out','f-hrs-in','f-fuel-gal','f-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-fuel-out').value = '';
+  document.getElementById('f-fuel-in').value = '';
+  document.querySelectorAll('#dep-checks input, #cabin-checks input, #ret-checks input').forEach(i => {
+    i.checked = false;
+    i.parentElement.classList.remove('dep-checked','cabin-checked','ret-checked');
+  });
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  setIndicator('');
+}
+
+function showTab(name, btn) {
+  document.getElementById('tab-new').classList.toggle('hidden', name !== 'new');
+  document.getElementById('tab-log').classList.toggle('hidden', name !== 'log');
+  document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  if (name === 'log') renderLog();
+}
+
+function toggleCheck(label, cls) {
+  setTimeout(() => {
+    const checked = label.querySelector('input').checked;
+    ['dep-checked','cabin-checked','ret-checked'].forEach(c => label.classList.remove(c));
+    if (checked) label.classList.add(cls);
+  }, 0);
+}
+
+function deleteEntry(id) {
+  if (!confirm('Delete this entry from the local view? (The row in OneDrive will remain — delete it there if needed.)')) return;
+  entries = entries.filter(e => e.id != id);
+  localStorage.setItem('stellaluna_entries', JSON.stringify(entries));
+  renderLog();
+}
+
+function renderLog() {
+  const el = document.getElementById('entries-list');
+  if (!entries.length) {
+    el.innerHTML = '<div class="empty">No voyages logged yet.</div>';
+    return;
+  }
+  el.innerHTML = entries.map(e => {
+    const dateStr = e.date ? new Date(e.date + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'long',day:'numeric',year:'numeric'}) : '—';
+    const tripTime = (e.dep && e.ret) ? `${e.dep} – ${e.ret}` : (e.dep || '');
+    const fuelStr = [e.fuelOut && `Out: ${e.fuelOut}`, e.fuelIn && `In: ${e.fuelIn}`, e.fuelGal !== '' && e.fuelGal !== undefined && `+${e.fuelGal} gal`].filter(Boolean).join(' · ');
+    const depB   = DEP_CHECKS.map(c   => `<span class="badge ${(e.depChecks||[]).includes(c)   ? 'ok-dep'   : 'x'}">` + ((e.depChecks||[]).includes(c)   ? '✓' : '—') + ` ${c}</span>`).join('');
+    const cabB   = CABIN_CHECKS.map(c => `<span class="badge ${(e.cabinChecks||[]).includes(c) ? 'ok-cabin' : 'x'}">` + ((e.cabinChecks||[]).includes(c) ? '✓' : '—') + ` ${c}</span>`).join('');
+    const retB   = RET_CHECKS.map(c   => `<span class="badge ${(e.retChecks||[]).includes(c)   ? 'ok-ret'   : 'x'}">` + ((e.retChecks||[]).includes(c)   ? '✓' : '—') + ` ${c}</span>`).join('');
+    return `<div class="entry-card">
+      <div class="entry-header">
+        <div>
+          <div class="entry-date">${dateStr}</div>
+          ${e.dest ? `<div class="entry-dest">${e.dest}</div>` : ''}
+        </div>
+        <button class="del-btn" onclick="deleteEntry(${e.id})">remove</button>
+      </div>
+      <div class="entry-stats">
+        ${tripTime ? `<span>${tripTime}</span>` : ''}
+        ${e.pax ? `<span>${e.pax}</span>` : ''}
+        ${e.elapsed !== '' && e.elapsed !== undefined ? `<span><strong>${e.elapsed} hrs</strong> underway</span>` : ''}
+        ${(e.hrsOut !== '' && e.hrsOut !== undefined) ? `<span>Engine: ${e.hrsOut} → ${e.hrsIn}</span>` : ''}
+        ${fuelStr ? `<span>Fuel — ${fuelStr}</span>` : ''}
+      </div>
+      <div class="check-group-label">Mechanical</div><div class="badges">${depB}</div>
+      <div class="check-group-label">Cabin &amp; deck</div><div class="badges">${cabB}</div>
+      <div class="check-group-label">Return</div><div class="badges">${retB}</div>
+      ${e.notes ? `<div class="entry-notes">${e.notes}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function exportCSV() {
+  if (!entries.length) { alert('No entries to export.'); return; }
+  const rows = entries.map(e => HEADERS.map((h,i) => {
+    const vals = [e.id,e.date,e.dep,e.ret,e.dest,e.pax,e.hrsOut,e.hrsIn,e.elapsed,e.fuelOut,e.fuelIn,e.fuelGal,
+      (e.depChecks||[]).join(';'),(e.cabinChecks||[]).join(';'),(e.retChecks||[]).join(';'),e.notes];
+    return `"${String(vals[i]??'').replace(/"/g,'""')}"`;
+  }).join(','));
+  const csv = [HEADERS.join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'stellaluna_log.csv';
+  a.click();
+}
+
+init();
+</script>
+</body>
+</html>
