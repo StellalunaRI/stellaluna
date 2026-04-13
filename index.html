@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Stellaluna — Voyage Log</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-authentication-library-for-js/2.38.3/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.0/lib/msal-browser.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400&display=swap');
 
@@ -335,13 +335,15 @@ const msalConfig = {
   cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
 };
 
-const msalInstance = new msal.PublicClientApplication(msalConfig);
+const msalLib = window.msalBrowser || window.msal;
+const msalInstance = new msalLib.PublicClientApplication(msalConfig);
 let accessToken = null;
 let workbookId = null;
 let entries = [];
 
 async function init() {
   try {
+    await msalInstance.initialize();
     const resp = await msalInstance.handleRedirectPromise();
     if (resp && resp.accessToken) {
       accessToken = resp.accessToken;
