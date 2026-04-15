@@ -225,6 +225,7 @@
         <div class="checks" id="ret-checks">
           <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Thru hulls closed"> Thru hulls closed</label>
           <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Safety gear stowed"> Safety gear stowed</label>
+          <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Propane off"> Propane off</label>
           <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Trip logged"> Trip logged</label>
           <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Battery switch off"> Battery switch off</label>
           <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Bilge clear"> Bilge clear</label>
@@ -308,6 +309,7 @@
     <div class="checks" id="e-ret-checks">
       <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Thru hulls closed"> Thru hulls closed</label>
       <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Safety gear stowed"> Safety gear stowed</label>
+      <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Propane off"> Propane off</label>
       <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Trip logged"> Trip logged</label>
       <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Battery switch off"> Battery switch off</label>
       <label class="check-item" onclick="toggleCheck(this,'ret-checked')"><input type="checkbox" value="Bilge clear"> Bilge clear</label>
@@ -333,7 +335,7 @@ const HEADERS      = ['ID','Status','Date','DepartureTime','ReturnTime','Destina
                       'DepChecks','CabinChecks','RetChecks','NotesDep','NotesRet'];
 const DEP_CHECKS   = ['Oil','Coolant','Bilge','Thru hulls open','Sea strainer','Safety gear','Fuel'];
 const CABIN_CHECKS = ['Deck hatches secured','Cabinets latched','Drawers secured','Loose items stowed','Companionway clear'];
-const RET_CHECKS   = ['Thru hulls closed','Safety gear stowed','Trip logged','Battery switch off','Bilge clear','Lines secured'];
+const RET_CHECKS   = ['Thru hulls closed','Safety gear stowed','Propane off','Trip logged','Battery switch off','Bilge clear','Lines secured'];
 
 const msalLib = window.msalBrowser || window.msal;
 const msalInstance = new msalLib.PublicClientApplication({
