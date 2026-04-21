@@ -411,19 +411,23 @@ async function syncFromOneDrive() {
   try {
     const resp = await api('GET','/me/drive/items/'+workbookId+"/workbook/worksheets('Sheet1')/usedRange");
     if (!resp?.values || resp.values.length < 2) return;
-    entries = resp.values.slice(1).filter(r=>r[0]).map(rowToEntry).reverse();
+    // filter out header row and any row whose ID is not a valid JS timestamp (13-digit number)
+    entries = resp.values.slice(1)
+      .filter(r => r[0] && !isNaN(Number(r[0])) && Number(r[0]) > 1000000000000)
+      .map(rowToEntry).reverse();
     saveLocal(); renderLog();
   } catch(e) { console.warn('Sync:',e); }
 }
 
 function rowToEntry(r) {
-  return { id:r[0], status:r[1]||'complete', date:r[2], dep:r[3], ret:r[4], dest:r[5], pax:r[6],
-    hrsOut:r[7], hrsIn:r[8], elapsed:r[9], fuelOut:r[10], fuelIn:r[11], fuelGal:r[12],
-    depChecks:r[13]?r[13].split(','):[], cabinChecks:r[14]?r[14].split(','):[], retChecks:r[15]?r[15].split(','):[],
+  return { id:Number(r[0]), status:r[1]||'complete', date:r[2]||'', dep:r[3]||'', ret:r[4]||'', dest:r[5]||'', pax:r[6]||'',
+    hrsOut:r[7]??'', hrsIn:r[8]??'', elapsed:r[9]??'', fuelOut:r[10]||'', fuelIn:r[11]||'', fuelGal:r[12]??'',
+    depChecks:r[13]?String(r[13]).split(',').filter(Boolean):[], cabinChecks:r[14]?String(r[14]).split(',').filter(Boolean):[], retChecks:r[15]?String(r[15]).split(',').filter(Boolean):[],
     notesDep:r[16]||'', notesRet:r[17]||'' };
 }
 function entryToRow(e) {
-  return [e.id,e.status,e.date,e.dep,e.ret,e.dest,e.pax,e.hrsOut??'',e.hrsIn??'',e.elapsed??'',
+  // store ID as string so Excel never interprets it as a date serial number
+  return [String(e.id),e.status,e.date,e.dep,e.ret,e.dest,e.pax,e.hrsOut??'',e.hrsIn??'',e.elapsed??'',
     e.fuelOut??'',e.fuelIn??'',e.fuelGal??'',(e.depChecks||[]).join(','),(e.cabinChecks||[]).join(','),(e.retChecks||[]).join(','),e.notesDep??'',e.notesRet??''];
 }
 async function getNextRow() {
@@ -442,7 +446,14 @@ async function findRowNum(id) {
 
 // ── LOCAL ─────────────────────────────────────────────────────────────
 function saveLocal() { localStorage.setItem('sl_entries', JSON.stringify(entries)); }
-function loadLocal() { const c=localStorage.getItem('sl_entries'); if(c) entries=JSON.parse(c); }
+function loadLocal() {
+  const c = localStorage.getItem('sl_entries');
+  if (c) {
+    const parsed = JSON.parse(c);
+    // strip out any phantom entries with invalid IDs (e.g. Excel date serials)
+    entries = parsed.filter(e => e.id && !isNaN(Number(e.id)) && Number(e.id) > 1000000000000);
+  }
+}
 function restoreOpenTrip() { openTrip = entries.find(e=>e.status==='underway')||null; updateUnderwayBanner(); }
 
 // ── TABS / FORMS ──────────────────────────────────────────────────────
