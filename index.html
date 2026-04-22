@@ -246,6 +246,7 @@
     <!-- LOG TAB -->
     <div id="tab-log" class="hidden">
       <button class="export-btn" onclick="exportCSV()">Export CSV</button>
+      <button class="clear-btn" onclick="showDiagnostics()">Diagnostics</button>
       <button class="clear-btn" onclick="clearLocalData()">Clear local cache</button>
       <div id="entries-list"></div>
     </div>
@@ -660,6 +661,41 @@ function exportCSV() {
   if (!entries.length) { alert('No entries to export.'); return; }
   const rows=entries.map(e=>entryToRow(e).map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
   const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent([HEADERS.join(','),...rows].join('\n')); a.download='stellaluna_log.csv'; a.click();
+}
+
+async function showDiagnostics() {
+  const lines = [];
+  const wbid = localStorage.getItem('sl_wbid');
+  lines.push('Workbook ID in cache: ' + (wbid || 'NONE'));
+  lines.push('Entries in local cache: ' + entries.length);
+  lines.push('Access token present: ' + (accessToken ? 'YES' : 'NO'));
+
+  if (accessToken) {
+    try {
+      // check who we are
+      const me = await api('GET', '/me');
+      lines.push('Signed in as: ' + (me.userPrincipalName || me.mail || me.displayName));
+    } catch(e) { lines.push('User lookup failed: ' + e.message); }
+
+    try {
+      // list root files
+      const root = await api('GET', '/me/drive/root/children?$select=name,id,webUrl&$top=20');
+      lines.push('--- OneDrive root files (' + root.value.length + ') ---');
+      root.value.forEach(f => lines.push('  ' + f.name + ' | ' + f.id));
+    } catch(e) { lines.push('Root listing failed: ' + e.message); }
+
+    if (wbid) {
+      try {
+        const item = await api('GET', '/me/drive/items/' + wbid + '?$select=name,webUrl,parentReference');
+        lines.push('--- Workbook location ---');
+        lines.push('Name: ' + item.name);
+        lines.push('URL: ' + item.webUrl);
+        lines.push('Parent: ' + (item.parentReference?.path || 'unknown'));
+      } catch(e) { lines.push('Workbook lookup failed: ' + e.message); }
+    }
+  }
+
+  alert(lines.join('\n'));
 }
 
 function clearLocalData() {
