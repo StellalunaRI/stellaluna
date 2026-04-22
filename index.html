@@ -119,6 +119,8 @@
 
   .export-btn { font-size: 11px; font-family: var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: none; border: 0.5px solid var(--border); border-radius: 6px; padding: 5px 11px; cursor: pointer; float: right; margin-top: -2px; }
   .export-btn:hover { color: var(--gold); border-color: var(--gold-dim); }
+  .clear-btn { font-size: 11px; font-family: var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: none; border: 0.5px solid var(--border); border-radius: 6px; padding: 5px 11px; cursor: pointer; float: right; margin-top: -2px; margin-left: 8px; }
+  .clear-btn:hover { color: var(--coral); border-color: var(--coral); }
   .empty { text-align: center; padding: 44px 0; font-style: italic; color: var(--muted); font-size: 18px; }
   .hidden { display: none !important; }
 </style>
@@ -244,6 +246,7 @@
     <!-- LOG TAB -->
     <div id="tab-log" class="hidden">
       <button class="export-btn" onclick="exportCSV()">Export CSV</button>
+      <button class="clear-btn" onclick="clearLocalData()">Clear local cache</button>
       <div id="entries-list"></div>
     </div>
   </div>
@@ -345,6 +348,13 @@ const msalInstance = new msalLib.PublicClientApplication({
 
 let accessToken = null, workbookId = null, entries = [], openTrip = null, editingId = null;
 
+function makeId() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const rnd = Math.floor(Math.random()*9000)+1000;
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'-'+pad(d.getHours())+pad(d.getMinutes())+'-'+rnd;
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────
 async function init() {
   try {
@@ -413,14 +423,14 @@ async function syncFromOneDrive() {
     if (!resp?.values || resp.values.length < 2) return;
     // filter out header row and any row whose ID is not a valid JS timestamp (13-digit number)
     entries = resp.values.slice(1)
-      .filter(r => r[0] && !isNaN(Number(r[0])) && Number(r[0]) > 1000000000000)
+      .filter(r => r[0] && String(r[0]).match(/^\d{4}-\d{2}-\d{2}-/))
       .map(rowToEntry).reverse();
     saveLocal(); renderLog();
   } catch(e) { console.warn('Sync:',e); }
 }
 
 function rowToEntry(r) {
-  return { id:Number(r[0]), status:r[1]||'complete', date:r[2]||'', dep:r[3]||'', ret:r[4]||'', dest:r[5]||'', pax:r[6]||'',
+  return { id:String(r[0]), status:r[1]||'complete', date:r[2]||'', dep:r[3]||'', ret:r[4]||'', dest:r[5]||'', pax:r[6]||'',
     hrsOut:r[7]??'', hrsIn:r[8]??'', elapsed:r[9]??'', fuelOut:r[10]||'', fuelIn:r[11]||'', fuelGal:r[12]??'',
     depChecks:r[13]?String(r[13]).split(',').filter(Boolean):[], cabinChecks:r[14]?String(r[14]).split(',').filter(Boolean):[], retChecks:r[15]?String(r[15]).split(',').filter(Boolean):[],
     notesDep:r[16]||'', notesRet:r[17]||'' };
@@ -451,7 +461,7 @@ function loadLocal() {
   if (c) {
     const parsed = JSON.parse(c);
     // strip out any phantom entries with invalid IDs (e.g. Excel date serials)
-    entries = parsed.filter(e => e.id && !isNaN(Number(e.id)) && Number(e.id) > 1000000000000);
+    entries = parsed.filter(e => e.id && String(e.id).match(/^\d{4}-\d{2}-\d{2}-/));
   }
 }
 function restoreOpenTrip() { openTrip = entries.find(e=>e.status==='underway')||null; updateUnderwayBanner(); }
@@ -489,7 +499,7 @@ function updateUnderwayBanner() {
 async function startVoyage() {
   if (!document.getElementById('f-date').value) { alert('Please enter a date.'); return; }
   const entry = {
-    id: Date.now(), status: 'underway',
+    id: makeId(), status: 'underway',
     date: document.getElementById('f-date').value,
     dep:  document.getElementById('f-dep').value,
     ret: '', dest: document.getElementById('f-dest').value,
@@ -650,6 +660,14 @@ function exportCSV() {
   if (!entries.length) { alert('No entries to export.'); return; }
   const rows=entries.map(e=>entryToRow(e).map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
   const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent([HEADERS.join(','),...rows].join('\n')); a.download='stellaluna_log.csv'; a.click();
+}
+
+function clearLocalData() {
+  if (!confirm('Clear the local cache? This removes entries from this device only — your OneDrive file is untouched. The app will reload and re-sync from OneDrive.')) return;
+  localStorage.removeItem('sl_entries');
+  localStorage.removeItem('sl_wbid');
+  entries = []; openTrip = null;
+  location.reload();
 }
 
 loadLocal(); init();
