@@ -423,10 +423,12 @@ async function syncFromOneDrive() {
     const resp = await api('GET','/me/drive/items/'+workbookId+"/workbook/worksheets('Sheet1')/usedRange");
     if (!resp?.values || resp.values.length < 2) return;
     // filter out header row and any row whose ID is not a valid JS timestamp (13-digit number)
-    entries = resp.values.slice(1)
+    const synced = resp.values.slice(1)
       .filter(r => r[0] && typeof r[0] === 'string' && r[0].match(/^\d{4}-\d{2}-\d{2}-\d{4}-\d{4}$/))
       .map(rowToEntry).reverse();
-    saveLocal(); renderLog();
+    // OneDrive is authoritative — fully replace local cache
+    entries = synced;
+    saveLocal(); renderLog(); updateUnderwayBanner();
   } catch(e) { console.warn('Sync:',e); }
 }
 
@@ -535,19 +537,44 @@ async function startVoyage() {
 
 // ── RETURN ────────────────────────────────────────────────────────────
 async function savePartial() {
-  if (!openTrip) return;
-  mergeReturn(openTrip); setInd('ret-indicator','Saving…');
-  try { const row=await findRowNum(openTrip.id); if(row) await writeRow(row,openTrip); setInd('ret-indicator','Saved ✓'); }
-  catch(e) { setInd('ret-indicator','Saved locally only',true); }
+  if (!openTrip) {
+    openTrip = entries.find(e => e.status === 'underway') || null;
+    if (!openTrip) return;
+  }
+  mergeReturn(openTrip);
+  setInd('ret-indicator', 'Saving…');
+  try {
+    const row = await findRowNum(openTrip.id);
+    if (row) await writeRow(row, openTrip);
+    setInd('ret-indicator', 'Saved ✓');
+  } catch(e) {
+    setInd('ret-indicator', 'Saved locally only', true);
+  }
 }
 
 async function completeVoyage() {
-  if (!openTrip) return;
-  mergeReturn(openTrip); openTrip.status='complete';
-  setInd('ret-indicator','Completing…');
-  try { const row=await findRowNum(openTrip.id); if(row) await writeRow(row,openTrip); }
-  catch(e) { setInd('ret-indicator','Saved locally — OneDrive sync failed',true); }
-  openTrip=null; saveLocal(); updateUnderwayBanner(); renderLog();
+  if (!openTrip) {
+    // try to recover openTrip from entries
+    openTrip = entries.find(e => e.status === 'underway') || null;
+    if (!openTrip) { alert('No open voyage found.'); return; }
+  }
+  mergeReturn(openTrip);
+  openTrip.status = 'complete';
+  const idx = entries.findIndex(e => e.id === openTrip.id);
+  if (idx >= 0) entries[idx] = openTrip;
+  saveLocal();
+  setInd('ret-indicator', 'Completing…');
+  try {
+    const row = await findRowNum(openTrip.id);
+    if (row) await writeRow(row, openTrip);
+    setInd('ret-indicator', 'Saved to OneDrive ✓');
+  } catch(e) {
+    setInd('ret-indicator', 'Saved locally — OneDrive sync failed', true);
+  }
+  openTrip = null;
+  saveLocal();
+  updateUnderwayBanner();
+  renderLog();
   showTab('log', document.getElementById('tab-btn-log'));
 }
 
@@ -724,11 +751,17 @@ async function showDiagnostics() {
 }
 
 function clearLocalData() {
-  if (!confirm('Clear the local cache? This removes entries from this device only — your OneDrive file is untouched. The app will reload and re-sync from OneDrive.')) return;
-  localStorage.removeItem('sl_entries');
-  localStorage.removeItem('sl_wbid');
-  entries = []; openTrip = null;
-  location.reload();
+  if (!confirm('Clear the local cache on this device? Your OneDrive file is untouched. The app will reload and re-sync from OneDrive.')) return;
+  // clear everything related to this app
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && (k.startsWith('sl_'))) keysToRemove.push(k);
+  }
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  entries = []; openTrip = null; editingId = null;
+  // force reload from scratch
+  window.location.href = window.location.href.split('?')[0] + '?nocache=' + Date.now();
 }
 
 loadLocal(); init();
