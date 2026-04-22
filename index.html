@@ -431,15 +431,26 @@ async function syncFromOneDrive() {
 }
 
 function rowToEntry(r) {
-  return { id:String(r[0]), status:r[1]||'complete', date:r[2]||'', dep:r[3]||'', ret:r[4]||'', dest:r[5]||'', pax:r[6]||'',
-    hrsOut:r[7]??'', hrsIn:r[8]??'', elapsed:r[9]??'', fuelOut:r[10]||'', fuelIn:r[11]||'', fuelGal:r[12]??'',
-    depChecks:r[13]?String(r[13]).split(',').filter(Boolean):[], cabinChecks:r[14]?String(r[14]).split(',').filter(Boolean):[], retChecks:r[15]?String(r[15]).split(',').filter(Boolean):[],
+  // strip TEXT: prefix added to prevent Excel date conversion
+  const ft = v => v ? String(v).replace(/^TEXT:/, '') : '';
+  return { id:String(r[0]), status:r[1]||'complete',
+    date:ft(r[2]), dep:ft(r[3]), ret:ft(r[4]),
+    dest:r[5]||'', pax:r[6]||'',
+    hrsOut:r[7]??'', hrsIn:r[8]??'', elapsed:r[9]??'',
+    fuelOut:r[10]||'', fuelIn:r[11]||'', fuelGal:r[12]??'',
+    depChecks:r[13]?String(r[13]).split(',').filter(Boolean):[],
+    cabinChecks:r[14]?String(r[14]).split(',').filter(Boolean):[],
+    retChecks:r[15]?String(r[15]).split(',').filter(Boolean):[],
     notesDep:r[16]||'', notesRet:r[17]||'' };
 }
 function entryToRow(e) {
-  // store ID as string so Excel never interprets it as a date serial number
-  return [String(e.id),e.status,e.date,e.dep,e.ret,e.dest,e.pax,e.hrsOut??'',e.hrsIn??'',e.elapsed??'',
-    e.fuelOut??'',e.fuelIn??'',e.fuelGal??'',(e.depChecks||[]).join(','),(e.cabinChecks||[]).join(','),(e.retChecks||[]).join(','),e.notesDep??'',e.notesRet??''];
+  // prefix date/time fields with TEXT: so Excel stores them as plain text, never as date serials
+  const td = v => v ? 'TEXT:' + v : '';
+  return [String(e.id), e.status, td(e.date), td(e.dep), td(e.ret), e.dest||'', e.pax||'',
+    e.hrsOut??'', e.hrsIn??'', e.elapsed??'',
+    e.fuelOut||'', e.fuelIn||'', e.fuelGal??'',
+    (e.depChecks||[]).join(','), (e.cabinChecks||[]).join(','), (e.retChecks||[]).join(','),
+    e.notesDep||'', e.notesRet||''];
 }
 async function getNextRow() {
   const resp = await api('GET','/me/drive/items/'+workbookId+"/workbook/worksheets('Sheet1')/usedRange");
