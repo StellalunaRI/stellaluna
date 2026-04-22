@@ -424,7 +424,7 @@ async function syncFromOneDrive() {
     if (!resp?.values || resp.values.length < 2) return;
     // filter out header row and any row whose ID is not a valid JS timestamp (13-digit number)
     entries = resp.values.slice(1)
-      .filter(r => r[0] && String(r[0]).match(/^\d{4}-\d{2}-\d{2}-/))
+      .filter(r => r[0] && typeof r[0] === 'string' && r[0].match(/^\d{4}-\d{2}-\d{2}-\d{4}-\d{4}$/))
       .map(rowToEntry).reverse();
     saveLocal(); renderLog();
   } catch(e) { console.warn('Sync:',e); }
@@ -462,7 +462,7 @@ function loadLocal() {
   if (c) {
     const parsed = JSON.parse(c);
     // strip out any phantom entries with invalid IDs (e.g. Excel date serials)
-    entries = parsed.filter(e => e.id && String(e.id).match(/^\d{4}-\d{2}-\d{2}-/));
+    entries = parsed.filter(e => e.id && String(e.id).match(/^\d{4}-\d{2}-\d{2}-\d{4}-\d{4}$/));
   }
 }
 function restoreOpenTrip() { openTrip = entries.find(e=>e.status==='underway')||null; updateUnderwayBanner(); }
